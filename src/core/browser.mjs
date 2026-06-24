@@ -1,17 +1,18 @@
 import { chromium } from "playwright";
 
-export async function launchHeadlessBrowser(config) {
+export async function launchHeadlessBrowser(config, options = {}) {
   const preferredChannel = config.browser?.preferredChannel || "msedge";
+  const headless = options.headless ?? true;
 
   try {
     const browser = await chromium.launch({
       channel: preferredChannel,
-      headless: true
+      headless
     });
 
     return {
       browser,
-      browserName: `${preferredChannel} headless`
+      browserName: `${preferredChannel} ${headless ? "headless" : "headed"}`
     };
   } catch (edgeError) {
     if (config.browser?.fallbackToChromium === false) {
@@ -19,12 +20,12 @@ export async function launchHeadlessBrowser(config) {
     }
 
     const browser = await chromium.launch({
-      headless: true
+      headless
     });
 
     return {
       browser,
-      browserName: `chromium headless fallback: ${edgeError.message}`
+      browserName: `chromium ${headless ? "headless" : "headed"} fallback: ${edgeError.message}`
     };
   }
 }

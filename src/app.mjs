@@ -12,23 +12,8 @@ if (process.argv.includes("--doctor")) {
     ok: true,
     rootDir: ROOT_DIR,
     profileName: config.profileName,
-    tools: [
-      "ps",
-      "start_ps",
-      "read_process",
-      "stop_process",
-      "list_processes",
-      "list_directory",
-      "get_file_info",
-      "create_directory",
-      "read_file",
-      "write_file",
-      "append_file",
-      "delete_path",
-      "move_path",
-      "search_names",
-      "screenshot_url"
-    ],
+    version: "2.0.0",
+    note: "Servidor MCP carregado. Use tools/list via MCP para ver a lista completa de ferramentas.",
     config
   }, null, 2));
 
@@ -37,12 +22,10 @@ if (process.argv.includes("--doctor")) {
 
 const server = new McpServer({
   name: config.profileName || "mcp-chatgpt-full-pc-dev",
-  version: "1.0.0"
+  version: "2.0.0"
 });
 
-const context = {
-  config
-};
+const context = { config };
 
 registerAllTools(server, context);
 
