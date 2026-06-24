@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Runtime output
+logs/
+screenshots/
+*.log
+
+# Local environment / secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# OpenAI tunnel binary and downloaded bundles
+tunnel-client.exe
+tunnel-client-*/
+*.zip
+*.tar.gz
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+PLANEJAMENTO.md 

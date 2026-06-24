@@ -1,0 +1,27 @@
+{
+  "profileName": "mcp-chatgpt-full-pc-dev",
+  "securityMode": "denylist",
+  "allowedRoots": [],
+  "maxCommandTimeoutMs": 300000,
+  "defaultCommandTimeoutMs": 60000,
+  "maxOutputChars": 120000,
+  "shell": {
+    "command": "powershell.exe",
+    "args": ["-NoLogo", "-NoProfile", "-Command"],
+    "windowsHide": true
+  },
+  "browser": {
+    "preferredChannel": "msedge",
+    "fallbackToChromium": true,
+    "width": 1440,
+    "height": 1000,
+    "waitMs": 1500,
+    "fullPage": true,
+    "waitUntil": "domcontentloaded"
+  },
+  "search": {
+    "skipDirs": ["node_modules", ".git", ".sfdx", ".sf", "dist", "build", ".next", ".angular"]
+  },
+  "blockedTokens": [],
+  "blockedRegex": []
+}

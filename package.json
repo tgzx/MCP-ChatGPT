@@ -1,0 +1,18 @@
+{
+  "name": "mcp-chatgpt-full-pc-dev",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "MCP local para ChatGPT controlar PC com terminal, arquivos, processos e screenshots headless.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "playwright": "latest",
+    "zod": "^3.25.76"
+  },
+  "scripts": {
+    "start": "node src/app.mjs",
+    "doctor": "node src/app.mjs --doctor",
+    "install-browsers": "npx playwright install chromium",
+    "check": "node --check src/app.mjs"
+  }
+}

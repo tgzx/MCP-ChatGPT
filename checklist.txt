@@ -1,0 +1,1504 @@
+Abaixo está o projeto **limpo, modular e copiável**. A ideia é você recriar essa estrutura em:
+
+```txt
+C:\Users\User\Documents\MCP ChatGPT
+```
+
+Ele fica assim:
+
+```txt
+MCP ChatGPT
+├─ package.json
+├─ README.md
+├─ PLANEJAMENTO.md
+├─ run-mcp.cmd
+├─ doctor.cmd
+├─ install-deps.cmd
+├─ config
+│  └─ settings.json
+└─ src
+   ├─ app.mjs
+   ├─ core
+   │  ├─ browser.mjs
+   │  ├─ config.mjs
+   │  ├─ guardrails.mjs
+   │  ├─ logger.mjs
+   │  ├─ paths.mjs
+   │  ├─ processStore.mjs
+   │  ├─ result.mjs
+   │  └─ shell.mjs
+   └─ tools
+      ├─ browserTools.mjs
+      ├─ filesystemTools.mjs
+      ├─ index.mjs
+      ├─ terminalTools.mjs
+      └─ template.example.mjs
+```
+
+---
+
+# `package.json`
+
+```json
+{
+  "name": "mcp-chatgpt-full-pc-dev",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "MCP local para ChatGPT controlar PC com terminal, arquivos, processos e screenshots headless.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "playwright": "latest",
+    "zod": "^3.25.76"
+  },
+  "scripts": {
+    "start": "node src/app.mjs",
+    "doctor": "node src/app.mjs --doctor",
+    "install-browsers": "npx playwright install chromium",
+    "check": "node --check src/app.mjs"
+  }
+}
+```
+
+---
+
+# `run-mcp.cmd`
+
+```bat
+@echo off
+cd /d "%~dp0"
+node "%~dp0src\app.mjs"
+```
+
+---
+
+# `doctor.cmd`
+
+```bat
+@echo off
+cd /d "%~dp0"
+node "%~dp0src\app.mjs" --doctor
+```
+
+---
+
+# `install-deps.cmd`
+
+```bat
+@echo off
+cd /d "%~dp0"
+npm install
+npx playwright install chromium
+echo.
+echo Dependencias instaladas.
+pause
+```
+
+---
+
+# `config/settings.json`
+
+```json
+{
+  "profileName": "mcp-chatgpt-full-pc-dev",
+  "securityMode": "denylist",
+  "allowedRoots": [],
+  "maxCommandTimeoutMs": 300000,
+  "defaultCommandTimeoutMs": 60000,
+  "maxOutputChars": 120000,
+  "shell": {
+    "command": "powershell.exe",
+    "args": ["-NoLogo", "-NoProfile", "-Command"],
+    "windowsHide": true
+  },
+  "browser": {
+    "preferredChannel": "msedge",
+    "fallbackToChromium": true,
+    "width": 1440,
+    "height": 1000,
+    "waitMs": 1500,
+    "fullPage": true,
+    "waitUntil": "domcontentloaded"
+  },
+  "search": {
+    "skipDirs": ["node_modules", ".git", ".sfdx", ".sf", "dist", "build", ".next", ".angular"]
+  },
+  "blockedTokens": [],
+  "blockedRegex": []
+}
+```
+
+Observação: `allowedRoots: []` significa **sem restrição de pasta**. Se quiser limitar depois:
+
+```json
+"allowedRoots": [
+  "C:\\Users\\User\\Documents",
+  "C:\\Projetos"
+]
+```
+
+---
+
+# `src/app.mjs`
+
+```js
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { loadConfig } from "./core/config.mjs";
+import { ROOT_DIR } from "./core/paths.mjs";
+import { registerAllTools } from "./tools/index.mjs";
+
+const config = await loadConfig();
+
+if (process.argv.includes("--doctor")) {
+  console.log(JSON.stringify({
+    ok: true,
+    rootDir: ROOT_DIR,
+    profileName: config.profileName,
+    tools: [
+      "ps",
+      "start_ps",
+      "read_process",
+      "stop_process",
+      "list_processes",
+      "list_directory",
+      "get_file_info",
+      "create_directory",
+      "read_file",
+      "write_file",
+      "append_file",
+      "delete_path",
+      "move_path",
+      "search_names",
+      "screenshot_url"
+    ],
+    config
+  }, null, 2));
+
+  process.exit(0);
+}
+
+const server = new McpServer({
+  name: config.profileName || "mcp-chatgpt-full-pc-dev",
+  version: "1.0.0"
+});
+
+const context = {
+  config
+};
+
+registerAllTools(server, context);
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+---
+
+# `src/core/paths.mjs`
+
+```js
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const ROOT_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  ".."
+);
+
+export const CONFIG_DIR = path.join(ROOT_DIR, "config");
+export const SETTINGS_PATH = path.join(CONFIG_DIR, "settings.json");
+export const LOG_DIR = path.join(ROOT_DIR, "logs");
+export const SCREENSHOT_DIR = path.join(ROOT_DIR, "screenshots");
+
+export function normalizePath(inputPath) {
+  if (!inputPath || String(inputPath).trim() === "") {
+    return process.cwd();
+  }
+
+  return path.resolve(String(inputPath));
+}
+
+export function isDriveRoot(targetPath) {
+  const resolved = path.resolve(targetPath);
+  const parsed = path.parse(resolved);
+
+  return resolved.toLowerCase() === parsed.root.toLowerCase();
+}
+
+export function isInside(childPath, parentPath) {
+  const child = path.resolve(childPath);
+  const parent = path.resolve(parentPath);
+  const relative = path.relative(parent, child);
+
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+export function assertPathAllowed(targetPath, config) {
+  const allowedRoots = Array.isArray(config.allowedRoots)
+    ? config.allowedRoots.filter(Boolean)
+    : [];
+
+  if (allowedRoots.length === 0) {
+    return;
+  }
+
+  const resolved = path.resolve(targetPath);
+
+  const allowed = allowedRoots.some(root => {
+    return isInside(resolved, root);
+  });
+
+  if (!allowed) {
+    throw new Error([
+      `Caminho fora das pastas permitidas: ${resolved}`,
+      "Pastas permitidas:",
+      ...allowedRoots
+    ].join("\n"));
+  }
+}
+```
+
+---
+
+# `src/core/config.mjs`
+
+```js
+import fs from "node:fs/promises";
+import { SETTINGS_PATH } from "./paths.mjs";
+
+const DEFAULT_CONFIG = {
+  profileName: "mcp-chatgpt-full-pc-dev",
+  securityMode: "denylist",
+  allowedRoots: [],
+  maxCommandTimeoutMs: 300000,
+  defaultCommandTimeoutMs: 60000,
+  maxOutputChars: 120000,
+  shell: {
+    command: "powershell.exe",
+    args: ["-NoLogo", "-NoProfile", "-Command"],
+    windowsHide: true
+  },
+  browser: {
+    preferredChannel: "msedge",
+    fallbackToChromium: true,
+    width: 1440,
+    height: 1000,
+    waitMs: 1500,
+    fullPage: true,
+    waitUntil: "domcontentloaded"
+  },
+  search: {
+    skipDirs: ["node_modules", ".git", ".sfdx", ".sf", "dist", "build", ".next", ".angular"]
+  },
+  blockedTokens: [],
+  blockedRegex: []
+};
+
+export async function loadConfig() {
+  try {
+    const raw = await fs.readFile(SETTINGS_PATH, "utf8");
+    const userConfig = JSON.parse(raw);
+
+    return {
+      ...DEFAULT_CONFIG,
+      ...userConfig,
+      shell: {
+        ...DEFAULT_CONFIG.shell,
+        ...(userConfig.shell || {})
+      },
+      browser: {
+        ...DEFAULT_CONFIG.browser,
+        ...(userConfig.browser || {})
+      },
+      search: {
+        ...DEFAULT_CONFIG.search,
+        ...(userConfig.search || {})
+      }
+    };
+  } catch {
+    return DEFAULT_CONFIG;
+  }
+}
+```
+
+---
+
+# `src/core/result.mjs`
+
+```js
+export function textResult(value) {
+  return {
+    content: [
+      {
+        type: "text",
+        text: String(value)
+      }
+    ]
+  };
+}
+
+export function jsonResult(value) {
+  return textResult(JSON.stringify(value, null, 2));
+}
+
+export function imageResult(note, base64, mimeType = "image/png") {
+  return {
+    content: [
+      {
+        type: "text",
+        text: String(note)
+      },
+      {
+        type: "image",
+        data: base64,
+        mimeType
+      }
+    ]
+  };
+}
+```
+
+---
+
+# `src/core/logger.mjs`
+
+```js
+import fs from "node:fs/promises";
+import path from "node:path";
+import { LOG_DIR } from "./paths.mjs";
+
+export async function appendLog(kind, payload = {}) {
+  await fs.mkdir(LOG_DIR, { recursive: true });
+
+  const filePath = path.join(LOG_DIR, "activity.jsonl");
+
+  const entry = {
+    ts: new Date().toISOString(),
+    kind,
+    ...payload
+  };
+
+  await fs.appendFile(filePath, JSON.stringify(entry) + "\n", "utf8");
+}
+```
+
+---
+
+# `src/core/guardrails.mjs`
+
+```js
+import { normalizePath, assertPathAllowed } from "./paths.mjs";
+
+const DEFAULT_BLOCKED_REGEX = [
+  /\bformat-volume\b/i,
+  /\bformat\s+[a-z]:/i,
+  /\bdiskpart\b/i,
+  /\bclear-disk\b/i,
+  /\binitialize-disk\b/i,
+  /\bremove-partition\b/i,
+  /\bdelete\s+partition\b/i,
+  /\bconvert\s+(gpt|mbr)\b/i,
+  /\bbcdedit\b/i,
+  /\bbootrec\b/i,
+  /\breagentc\b/i,
+  /\bshutdown\b/i,
+  /\brestart-computer\b/i,
+  /\bstop-computer\b/i,
+  /\bdisable-computerrestore\b/i,
+  /\bset-mppreference\b/i,
+  /\badd-mppreference\b/i,
+  /\bremove-mppreference\b/i,
+  /\bnetsh\s+advfirewall\s+set\s+allprofiles\s+state\s+off\b/i,
+  /\bnew-localuser\b/i,
+  /\bnet\s+user\b/i,
+  /\badd-localgroupmember\b/i,
+  /\bset-executionpolicy\s+unrestricted\b/i,
+  /\bstart-process\b[\s\S]*\b-verb\s+runas\b/i,
+  /\b(iwr|irm|invoke-webrequest|invoke-restmethod)\b[\s\S]*\|\s*(iex|invoke-expression)\b/i,
+  /\biex\b/i,
+  /\binvoke-expression\b/i
+];
+
+export function assertCommandAllowed(command, config) {
+  const mode = config.securityMode || "denylist";
+
+  if (mode === "off") {
+    return;
+  }
+
+  const text = String(command || "");
+
+  for (const rule of DEFAULT_BLOCKED_REGEX) {
+    if (rule.test(text)) {
+      throw new Error(`Comando bloqueado pela regra padrão: ${rule}`);
+    }
+  }
+
+  for (const token of config.blockedTokens || []) {
+    if (token && text.toLowerCase().includes(String(token).toLowerCase())) {
+      throw new Error(`Comando bloqueado por blockedTokens: ${token}`);
+    }
+  }
+
+  for (const pattern of config.blockedRegex || []) {
+    const rule = new RegExp(pattern, "i");
+
+    if (rule.test(text)) {
+      throw new Error(`Comando bloqueado por blockedRegex: ${pattern}`);
+    }
+  }
+}
+
+export function resolveAllowedPath(targetPath, config) {
+  const resolved = normalizePath(targetPath);
+  assertPathAllowed(resolved, config);
+  return resolved;
+}
+```
+
+---
+
+# `src/core/shell.mjs`
+
+```js
+import { spawn } from "node:child_process";
+import { appendLog } from "./logger.mjs";
+import { assertCommandAllowed, resolveAllowedPath } from "./guardrails.mjs";
+
+export async function runShellCommand(command, options = {}) {
+  const config = options.config || {};
+  const cwd = resolveAllowedPath(options.cwd || process.cwd(), config);
+
+  const timeoutMs = Math.min(
+    Number(options.timeoutMs || config.defaultCommandTimeoutMs || 60000),
+    Number(config.maxCommandTimeoutMs || 300000)
+  );
+
+  assertCommandAllowed(command, config);
+
+  await appendLog("ps", {
+    cwd,
+    command,
+    timeoutMs
+  });
+
+  const shellCommand = config.shell?.command || "powershell.exe";
+  const shellArgs = Array.isArray(config.shell?.args)
+    ? [...config.shell.args, command]
+    : ["-NoLogo", "-NoProfile", "-Command", command];
+
+  const windowsHide = config.shell?.windowsHide !== false;
+
+  return await new Promise(resolve => {
+    const child = spawn(shellCommand, shellArgs, {
+      cwd,
+      windowsHide
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({
+        exitCode: "TIMEOUT",
+        stdout,
+        stderr: stderr + `\nTimeout após ${timeoutMs}ms.`
+      });
+    }, timeoutMs);
+
+    child.stdout.on("data", data => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on("data", data => {
+      stderr += data.toString();
+    });
+
+    child.on("close", code => {
+      clearTimeout(timer);
+
+      resolve({
+        exitCode: code,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+```
+
+---
+
+# `src/core/processStore.mjs`
+
+```js
+import { spawn } from "node:child_process";
+import { appendLog } from "./logger.mjs";
+import { assertCommandAllowed, resolveAllowedPath } from "./guardrails.mjs";
+
+const sessions = new Map();
+
+export async function startShellProcess(command, options = {}) {
+  const config = options.config || {};
+  const cwd = resolveAllowedPath(options.cwd || process.cwd(), config);
+
+  assertCommandAllowed(command, config);
+
+  await appendLog("start_ps", {
+    cwd,
+    command
+  });
+
+  const shellCommand = config.shell?.command || "powershell.exe";
+  const shellArgs = Array.isArray(config.shell?.args)
+    ? [...config.shell.args, command]
+    : ["-NoLogo", "-NoProfile", "-Command", command];
+
+  const windowsHide = config.shell?.windowsHide !== false;
+
+  const child = spawn(shellCommand, shellArgs, {
+    cwd,
+    windowsHide
+  });
+
+  const sessionId = String(child.pid);
+
+  const session = {
+    sessionId,
+    pid: child.pid,
+    cwd,
+    command,
+    stdout: "",
+    stderr: "",
+    startedAt: new Date().toISOString(),
+    exited: false,
+    exitCode: null
+  };
+
+  sessions.set(sessionId, session);
+
+  child.stdout.on("data", data => {
+    session.stdout += data.toString();
+  });
+
+  child.stderr.on("data", data => {
+    session.stderr += data.toString();
+  });
+
+  child.on("close", code => {
+    session.exited = true;
+    session.exitCode = code;
+  });
+
+  return session;
+}
+
+export function readProcessSession(sessionId) {
+  const session = sessions.get(String(sessionId));
+
+  if (!session) {
+    throw new Error(`Sessão não encontrada: ${sessionId}`);
+  }
+
+  return session;
+}
+
+export function listProcessSessions() {
+  return [...sessions.values()];
+}
+
+export async function stopProcessSession(sessionId) {
+  const session = readProcessSession(sessionId);
+
+  try {
+    process.kill(Number(session.pid));
+    session.exited = true;
+  } catch (error) {
+    throw new Error(`Falha ao encerrar processo ${sessionId}: ${error.message}`);
+  }
+
+  await appendLog("stop_process", {
+    sessionId,
+    pid: session.pid
+  });
+
+  return session;
+}
+```
+
+---
+
+# `src/core/browser.mjs`
+
+```js
+import { chromium } from "playwright";
+
+export async function launchHeadlessBrowser(config) {
+  const preferredChannel = config.browser?.preferredChannel || "msedge";
+
+  try {
+    const browser = await chromium.launch({
+      channel: preferredChannel,
+      headless: true
+    });
+
+    return {
+      browser,
+      browserName: `${preferredChannel} headless`
+    };
+  } catch (edgeError) {
+    if (config.browser?.fallbackToChromium === false) {
+      throw edgeError;
+    }
+
+    const browser = await chromium.launch({
+      headless: true
+    });
+
+    return {
+      browser,
+      browserName: `chromium headless fallback: ${edgeError.message}`
+    };
+  }
+}
+```
+
+---
+
+# `src/tools/index.mjs`
+
+```js
+import { registerTerminalTools } from "./terminalTools.mjs";
+import { registerFilesystemTools } from "./filesystemTools.mjs";
+import { registerBrowserTools } from "./browserTools.mjs";
+
+export function registerAllTools(server, context) {
+  registerTerminalTools(server, context);
+  registerFilesystemTools(server, context);
+  registerBrowserTools(server, context);
+}
+```
+
+---
+
+# `src/tools/terminalTools.mjs`
+
+```js
+import { z } from "zod";
+import { jsonResult, textResult } from "../core/result.mjs";
+import { runShellCommand } from "../core/shell.mjs";
+import {
+  startShellProcess,
+  readProcessSession,
+  stopProcessSession,
+  listProcessSessions
+} from "../core/processStore.mjs";
+
+function limit(value, maxChars) {
+  return String(value || "").slice(-Number(maxChars || 120000));
+}
+
+export function registerTerminalTools(server, context) {
+  server.tool(
+    "ps",
+    "Executa um comando PowerShell no PC.",
+    {
+      command: z.string(),
+      cwd: z.string().default(process.cwd()),
+      timeoutMs: z.number().int().min(1000).max(300000).default(60000)
+    },
+    async ({ command, cwd, timeoutMs }) => {
+      const result = await runShellCommand(command, {
+        cwd,
+        timeoutMs,
+        config: context.config
+      });
+
+      return jsonResult({
+        exitCode: result.exitCode,
+        stdout: limit(result.stdout, context.config.maxOutputChars),
+        stderr: limit(result.stderr, context.config.maxOutputChars)
+      });
+    }
+  );
+
+  server.tool(
+    "start_ps",
+    "Inicia um comando PowerShell longo em segundo plano.",
+    {
+      command: z.string(),
+      cwd: z.string().default(process.cwd())
+    },
+    async ({ command, cwd }) => {
+      const session = await startShellProcess(command, {
+        cwd,
+        config: context.config
+      });
+
+      return jsonResult({
+        sessionId: session.sessionId,
+        pid: session.pid,
+        cwd: session.cwd,
+        command: session.command,
+        startedAt: session.startedAt
+      });
+    }
+  );
+
+  server.tool(
+    "read_process",
+    "Lê stdout/stderr de um processo iniciado por start_ps.",
+    {
+      sessionId: z.string(),
+      maxChars: z.number().int().min(1000).max(120000).default(30000)
+    },
+    async ({ sessionId, maxChars }) => {
+      const session = readProcessSession(sessionId);
+
+      return jsonResult({
+        sessionId: session.sessionId,
+        pid: session.pid,
+        exited: session.exited,
+        exitCode: session.exitCode,
+        cwd: session.cwd,
+        command: session.command,
+        stdout: limit(session.stdout, maxChars),
+        stderr: limit(session.stderr, maxChars)
+      });
+    }
+  );
+
+  server.tool(
+    "stop_process",
+    "Encerra um processo iniciado por start_ps.",
+    {
+      sessionId: z.string()
+    },
+    async ({ sessionId }) => {
+      const session = await stopProcessSession(sessionId);
+
+      return textResult(`Processo encerrado: ${session.sessionId}`);
+    }
+  );
+
+  server.tool(
+    "list_processes",
+    "Lista processos criados por start_ps nesta sessão MCP.",
+    {},
+    async () => {
+      return jsonResult(listProcessSessions());
+    }
+  );
+}
+```
+
+---
+
+# `src/tools/filesystemTools.mjs`
+
+```js
+import fs from "node:fs/promises";
+import path from "node:path";
+import { z } from "zod";
+
+import { jsonResult, textResult } from "../core/result.mjs";
+import { appendLog } from "../core/logger.mjs";
+import { resolveAllowedPath } from "../core/guardrails.mjs";
+import { isDriveRoot } from "../core/paths.mjs";
+
+async function walkNames(root, pattern, results, options) {
+  if (results.length >= options.maxResults) {
+    return;
+  }
+
+  const entries = await fs.readdir(root, {
+    withFileTypes: true
+  });
+
+  for (const entry of entries) {
+    if (results.length >= options.maxResults) {
+      break;
+    }
+
+    const fullPath = path.join(root, entry.name);
+
+    if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
+      results.push(fullPath);
+    }
+
+    if (entry.isDirectory()) {
+      const skip = options.skipDirs.includes(entry.name);
+
+      if (!skip) {
+        await walkNames(fullPath, pattern, results, options).catch(() => {});
+      }
+    }
+  }
+}
+
+export function registerFilesystemTools(server, context) {
+  server.tool(
+    "list_directory",
+    "Lista arquivos e pastas de um caminho.",
+    {
+      targetPath: z.string().default(process.cwd())
+    },
+    async ({ targetPath }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+      const entries = await fs.readdir(p, { withFileTypes: true });
+
+      const lines = entries
+        .map(entry => `${entry.isDirectory() ? "[DIR]" : "[FILE]"} ${entry.name}`)
+        .sort();
+
+      return textResult(`Path: ${p}\n\n${lines.join("\n")}`);
+    }
+  );
+
+  server.tool(
+    "get_file_info",
+    "Mostra metadados básicos de arquivo ou pasta.",
+    {
+      targetPath: z.string()
+    },
+    async ({ targetPath }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+      const stat = await fs.stat(p);
+
+      return jsonResult({
+        path: p,
+        type: stat.isDirectory() ? "directory" : "file",
+        size: stat.size,
+        createdAt: stat.birthtime,
+        modifiedAt: stat.mtime,
+        accessedAt: stat.atime
+      });
+    }
+  );
+
+  server.tool(
+    "create_directory",
+    "Cria uma pasta recursivamente.",
+    {
+      targetPath: z.string()
+    },
+    async ({ targetPath }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+
+      await fs.mkdir(p, { recursive: true });
+
+      await appendLog("create_directory", {
+        targetPath: p
+      });
+
+      return textResult(`Pasta criada/confirmada: ${p}`);
+    }
+  );
+
+  server.tool(
+    "read_file",
+    "Lê arquivo de texto.",
+    {
+      targetPath: z.string(),
+      maxChars: z.number().int().min(100).max(500000).default(120000)
+    },
+    async ({ targetPath, maxChars }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+      const content = await fs.readFile(p, "utf8");
+
+      return textResult(content.slice(0, maxChars));
+    }
+  );
+
+  server.tool(
+    "write_file",
+    "Cria ou sobrescreve arquivo de texto.",
+    {
+      targetPath: z.string(),
+      content: z.string()
+    },
+    async ({ targetPath, content }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+
+      await fs.mkdir(path.dirname(p), {
+        recursive: true
+      });
+
+      await fs.writeFile(p, content, "utf8");
+
+      await appendLog("write_file", {
+        targetPath: p,
+        chars: content.length
+      });
+
+      return textResult(`Arquivo gravado: ${p}`);
+    }
+  );
+
+  server.tool(
+    "append_file",
+    "Adiciona texto ao final de um arquivo.",
+    {
+      targetPath: z.string(),
+      content: z.string()
+    },
+    async ({ targetPath, content }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+
+      await fs.mkdir(path.dirname(p), {
+        recursive: true
+      });
+
+      await fs.appendFile(p, content, "utf8");
+
+      await appendLog("append_file", {
+        targetPath: p,
+        chars: content.length
+      });
+
+      return textResult(`Texto adicionado: ${p}`);
+    }
+  );
+
+  server.tool(
+    "delete_path",
+    "Remove arquivo ou pasta. Recusa raiz de unidade.",
+    {
+      targetPath: z.string(),
+      recursive: z.boolean().default(false)
+    },
+    async ({ targetPath, recursive }) => {
+      const p = resolveAllowedPath(targetPath, context.config);
+
+      if (isDriveRoot(p)) {
+        throw new Error(`Recusado: não removo raiz de unidade (${p}).`);
+      }
+
+      const stat = await fs.stat(p);
+
+      if (stat.isDirectory()) {
+        await fs.rm(p, {
+          recursive,
+          force: false
+        });
+      } else {
+        await fs.unlink(p);
+      }
+
+      await appendLog("delete_path", {
+        targetPath: p,
+        recursive
+      });
+
+      return textResult(`Removido: ${p}`);
+    }
+  );
+
+  server.tool(
+    "move_path",
+    "Move ou renomeia arquivo/pasta.",
+    {
+      sourcePath: z.string(),
+      destinationPath: z.string()
+    },
+    async ({ sourcePath, destinationPath }) => {
+      const src = resolveAllowedPath(sourcePath, context.config);
+      const dst = resolveAllowedPath(destinationPath, context.config);
+
+      await fs.mkdir(path.dirname(dst), {
+        recursive: true
+      });
+
+      await fs.rename(src, dst);
+
+      await appendLog("move_path", {
+        sourcePath: src,
+        destinationPath: dst
+      });
+
+      return textResult(`Movido: ${src} -> ${dst}`);
+    }
+  );
+
+  server.tool(
+    "search_names",
+    "Busca arquivos e pastas por nome.",
+    {
+      rootPath: z.string(),
+      pattern: z.string(),
+      maxResults: z.number().int().min(1).max(500).default(100)
+    },
+    async ({ rootPath, pattern, maxResults }) => {
+      const root = resolveAllowedPath(rootPath, context.config);
+      const results = [];
+
+      await walkNames(root, pattern, results, {
+        maxResults,
+        skipDirs: context.config.search?.skipDirs || []
+      });
+
+      return textResult(results.join("\n") || "Nenhum resultado.");
+    }
+  );
+}
+```
+
+---
+
+# `src/tools/browserTools.mjs`
+
+```js
+import fs from "node:fs/promises";
+import path from "node:path";
+import { z } from "zod";
+
+import { launchHeadlessBrowser } from "../core/browser.mjs";
+import { appendLog } from "../core/logger.mjs";
+import { imageResult } from "../core/result.mjs";
+import { SCREENSHOT_DIR } from "../core/paths.mjs";
+
+function timestamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+export function registerBrowserTools(server, context) {
+  server.tool(
+    "screenshot_url",
+    "Abre uma URL em Edge headless, com fallback Chromium, e retorna screenshot.",
+    {
+      url: z.string(),
+      waitMs: z.number().int().min(0).max(30000).default(context.config.browser?.waitMs || 1500),
+      fullPage: z.boolean().default(context.config.browser?.fullPage ?? true),
+      width: z.number().int().min(320).max(3840).default(context.config.browser?.width || 1440),
+      height: z.number().int().min(240).max(2160).default(context.config.browser?.height || 1000),
+      waitUntil: z.enum(["load", "domcontentloaded", "networkidle", "commit"]).default(
+        context.config.browser?.waitUntil || "domcontentloaded"
+      )
+    },
+    async ({ url, waitMs, fullPage, width, height, waitUntil }) => {
+      await fs.mkdir(SCREENSHOT_DIR, {
+        recursive: true
+      });
+
+      const outputPath = path.join(SCREENSHOT_DIR, `url-${timestamp()}.png`);
+
+      const { browser, browserName } = await launchHeadlessBrowser(context.config);
+
+      const page = await browser.newPage({
+        viewport: {
+          width,
+          height
+        }
+      });
+
+      const notes = [];
+
+      page.on("pageerror", error => {
+        notes.push(`PAGEERROR: ${error.message}`);
+      });
+
+      page.on("console", message => {
+        const type = message.type();
+
+        if (["error", "warning"].includes(type)) {
+          notes.push(`CONSOLE ${type}: ${message.text()}`);
+        }
+      });
+
+      let response = null;
+
+      try {
+        response = await page.goto(url, {
+          waitUntil,
+          timeout: 60000
+        });
+
+        if (waitMs > 0) {
+          await page.waitForTimeout(waitMs);
+        }
+
+        const title = await page.title().catch(() => "");
+        const finalUrl = page.url();
+
+        const buffer = await page.screenshot({
+          path: outputPath,
+          fullPage
+        });
+
+        await browser.close();
+
+        await appendLog("screenshot_url", {
+          url,
+          finalUrl,
+          outputPath,
+          browserName,
+          width,
+          height,
+          fullPage,
+          waitUntil
+        });
+
+        const note = JSON.stringify({
+          savedAt: outputPath,
+          browser: browserName,
+          requestedUrl: url,
+          finalUrl,
+          title,
+          httpStatus: response ? response.status() : null,
+          notes
+        }, null, 2);
+
+        return imageResult(note, buffer.toString("base64"));
+      } catch (error) {
+        await browser.close();
+
+        throw new Error([
+          `Falha ao abrir URL em modo headless: ${url}`,
+          `Browser usado: ${browserName}`,
+          error.message
+        ].join("\n"));
+      }
+    }
+  );
+}
+```
+
+---
+
+# `src/tools/template.example.mjs`
+
+```js
+import { z } from "zod";
+import { textResult } from "../core/result.mjs";
+
+export function registerExampleTools(server, context) {
+  server.tool(
+    "hello_tool",
+    "Exemplo de ferramenta nova.",
+    {
+      name: z.string().default("User")
+    },
+    async ({ name }) => {
+      return textResult(`Olá, ${name}!`);
+    }
+  );
+}
+```
+
+Para ativar uma nova tool modular, você criaria um arquivo em `src/tools`, exportaria uma função `register...Tools`, e adicionaria no `src/tools/index.mjs`.
+
+Exemplo:
+
+```js
+import { registerExampleTools } from "./template.example.mjs";
+
+export function registerAllTools(server, context) {
+  registerTerminalTools(server, context);
+  registerFilesystemTools(server, context);
+  registerBrowserTools(server, context);
+  registerExampleTools(server, context);
+}
+```
+
+---
+
+# `README.md`
+
+````md
+# MCP ChatGPT Full PC Dev
+
+MCP local para permitir que o ChatGPT controle o PC via Secure MCP Tunnel.
+
+## Recursos
+
+- Terminal PowerShell
+- Processos longos em segundo plano
+- Leitura e escrita de arquivos
+- Criação, remoção e movimentação de arquivos/pastas
+- Busca por nome de arquivo/pasta
+- Screenshot headless de URLs locais usando Edge/Chromium via Playwright
+
+## Instalação
+
+Abra PowerShell/CMD nesta pasta:
+
+```bat
+install-deps.cmd
+````
+
+Ou manualmente:
+
+```bat
+npm install
+npx playwright install chromium
+```
+
+## Teste local
+
+```bat
+doctor.cmd
+```
+
+Deve mostrar JSON com as ferramentas disponíveis.
+
+## Rodar MCP
+
+```bat
+run-mcp.cmd
+```
+
+Esse comando fica aberto, esperando conexão MCP via stdio.
+
+## Configuração
+
+Edite:
+
+```txt
+config/settings.json
+```
+
+### Liberar tudo
+
+```json
+"securityMode": "off"
+```
+
+### Usar denylist
+
+```json
+"securityMode": "denylist"
+```
+
+### Limitar pastas
+
+```json
+"allowedRoots": [
+  "C:\\Users\\User\\Documents",
+  "C:\\Projetos"
+]
+```
+
+Se `allowedRoots` estiver vazio, o MCP não limita pasta por conta própria.
+
+## Conectar com Secure MCP Tunnel
+
+Aponte o tunnel-client para:
+
+```txt
+C:\Users\User\Documents\MCP ChatGPT\run-mcp.cmd
+```
+
+Exemplo:
+
+```powershell
+$Base = "$env:USERPROFILE\Documents\MCP ChatGPT"
+$TunnelClient = "CAMINHO\DO\tunnel-client.exe"
+
+$env:CONTROL_PLANE_API_KEY = "SUA_RUNTIME_API_KEY"
+$TunnelId = "SEU_TUNNEL_ID"
+
+& $TunnelClient init `
+  --sample sample_mcp_stdio_local `
+  --profile mcp-chatgpt-full-pc-dev `
+  --tunnel-id $TunnelId `
+  --mcp-command "cmd.exe /c `"$Base\run-mcp.cmd`""
+
+& $TunnelClient doctor --profile mcp-chatgpt-full-pc-dev --explain
+& $TunnelClient run --profile mcp-chatgpt-full-pc-dev
+```
+
+## Uso esperado no ChatGPT
+
+```txt
+Use o MCP mcp-chatgpt-full-pc-dev. Liste a pasta C:\Projetos.
+```
+
+```txt
+Entre no projeto C:\Projetos\restaurante-app, rode npm run dev em segundo plano e tire screenshot de http://localhost:5173.
+```
+
+## Ferramentas
+
+* ps
+* start_ps
+* read_process
+* stop_process
+* list_processes
+* list_directory
+* get_file_info
+* create_directory
+* read_file
+* write_file
+* append_file
+* delete_path
+* move_path
+* search_names
+* screenshot_url
+
+````
+
+---
+
+# `PLANEJAMENTO.md`
+
+```md
+# MCP ChatGPT — planejamento e status
+
+## Objetivo
+
+Criar um MCP local para o ChatGPT controlar este PC com terminal, processos longos, arquivos e screenshots headless.
+
+## Pasta sugerida
+
+`C:\Users\User\Documents\MCP ChatGPT`
+
+## Arquitetura
+
+ChatGPT Web  
+→ Secure MCP Tunnel  
+→ tunnel-client no PC  
+→ `run-mcp.cmd`  
+→ servidor MCP local via stdio
+
+## Estrutura
+
+- `src/app.mjs`: entrypoint principal.
+- `src/core`: funções reutilizáveis.
+- `src/tools`: ferramentas MCP expostas ao ChatGPT.
+- `config/settings.json`: travas e preferências.
+- `logs/activity.jsonl`: logs de ações.
+- `screenshots`: saída dos screenshots.
+
+## Ferramentas
+
+- `ps`: executa PowerShell.
+- `start_ps`: inicia processo longo em segundo plano.
+- `read_process`: lê saída de processo.
+- `stop_process`: encerra processo.
+- `list_processes`: lista processos criados pelo MCP.
+- `list_directory`: lista arquivos/pastas.
+- `get_file_info`: metadados básicos.
+- `create_directory`: cria pasta.
+- `read_file`: lê arquivo.
+- `write_file`: grava arquivo.
+- `append_file`: adiciona texto.
+- `delete_path`: remove arquivo/pasta.
+- `move_path`: move/renomeia.
+- `search_names`: busca por nome.
+- `screenshot_url`: abre URL em Edge headless e retorna print.
+
+## Como ajustar travas
+
+Arquivo:
+
+`config/settings.json`
+
+### Modo padrão
+
+```json
+"securityMode": "denylist"
+````
+
+### Desligar trava local
+
+```json
+"securityMode": "off"
+```
+
+### Bloquear termos extras
+
+```json
+"blockedTokens": [
+  "algum termo"
+]
+```
+
+### Bloquear regex extras
+
+```json
+"blockedRegex": [
+  "\\bpadrao\\b"
+]
+```
+
+### Limitar pastas
+
+```json
+"allowedRoots": [
+  "C:\\Users\\User\\Documents",
+  "C:\\Projetos"
+]
+```
+
+Se `allowedRoots` estiver vazio, o MCP não limita pasta por conta própria.
+
+## Como adicionar novas ferramentas
+
+1. Criar arquivo em `src/tools`.
+2. Exportar função `registerNomeTools(server, context)`.
+3. Importar essa função em `src/tools/index.mjs`.
+4. Chamar dentro de `registerAllTools`.
+
+Modelo:
+
+```js
+import { z } from "zod";
+import { textResult } from "../core/result.mjs";
+
+export function registerMinhaTool(server, context) {
+  server.tool(
+    "minha_tool",
+    "Descrição da ferramenta.",
+    {
+      input: z.string()
+    },
+    async ({ input }) => {
+      return textResult(`Recebi: ${input}`);
+    }
+  );
+}
+```
+
+## Próximos passos
+
+* Criar tunnel_id na OpenAI.
+* Criar runtime API key.
+* Rodar tunnel-client apontando para `run-mcp.cmd`.
+* Criar custom connector no ChatGPT usando Tunnel.
+
+````
+
+---
+
+# Como instalar depois de criar os arquivos
+
+Na pasta:
+
+```bat
+cd /d "C:\Users\User\Documents\MCP ChatGPT"
+install-deps.cmd
+````
+
+Testa:
+
+```bat
+doctor.cmd
+```
+
+Roda o MCP:
+
+```bat
+run-mcp.cmd
+```
+
+Para o tunnel-client, aponta para:
+
+```txt
+C:\Users\User\Documents\MCP ChatGPT\run-mcp.cmd
+```
+
+Essa é a versão que eu queria ter feito desde o começo: **modular, fácil de mexer, com travas em config, e tools separadas por responsabilidade**.
