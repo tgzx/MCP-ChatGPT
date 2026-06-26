@@ -61,6 +61,11 @@ Antes de instalar, tenha:
 - Runtime API Key/API Key de projeto para o tunnel.
 - `tunnel-client.exe` compativel com Windows.
 
+Observacao sobre Node.js: os scripts deste projeto procuram o Node em
+`C:\Program Files\nodejs\node.exe`. Instalacoes via nvm, fnm, Volta, Scoop ou
+outro caminho podem funcionar, mas exigem ajuste manual no `tunnel-init.cmd` ou
+no YAML gerado.
+
 ## Instalacao em Ordem Cronologica
 
 ### 1. Obter o projeto
@@ -109,8 +114,30 @@ Baixe o binario Windows do OpenAI tunnel-client e coloque na raiz do projeto:
 C:\Users\SEU_USUARIO\Documents\MCP ChatGPT\tunnel-client.exe
 ```
 
-Se o download vier em ZIP, extraia o executavel correto para Windows, por
-exemplo `windows-amd64`.
+Fontes recomendadas:
+
+- Pagina de Tunnels na OpenAI Platform, quando ela oferecer o link de download
+  do cliente.
+- Release publico mais recente do repositorio oficial:
+  `https://github.com/openai/tunnel-client/releases`
+
+No release publico, baixe o ZIP de Windows apropriado:
+
+```txt
+windows-amd64.zip
+```
+
+Em maquinas ARM, use:
+
+```txt
+windows-arm64.zip
+```
+
+Extraia o ZIP e copie/renomeie o executavel para:
+
+```txt
+tunnel-client.exe
+```
 
 ### 5. Criar um tunnel na OpenAI Platform
 
@@ -195,10 +222,64 @@ tunnel-client started
 
 ### 10. Criar o Custom Connector/App no ChatGPT
 
-No ChatGPT Web, crie um Custom Connector/App usando conexao por Tunnel e informe
-o mesmo `tunnel_id` criado na OpenAI Platform.
+No ChatGPT Web, abra as configuracoes da conta:
+
+```txt
+Perfil/conta no canto inferior esquerdo
+-> Configuracoes
+-> Aplicativos
+```
+
+Em `Aplicativos`, abra `Configuracoes avancadas` e habilite:
+
+```txt
+Modo desenvolvedor
+```
+
+Depois que o modo desenvolvedor estiver habilitado, o botao `Criar aplicativo`
+aparece na tela de aplicativos.
+
+Crie um novo app/conector com os campos:
+
+Valores esperados:
+
+```txt
+Nome: escolha um nome, por exemplo PC Controller
+Connection/Conexao: Tunnel
+Tunnel ID: mesmo tunnel_xxx usado no tunnel-init.cmd
+Authentication/Autenticacao: sem autenticacao adicional
+```
+
+Na criacao, a interface tambem pode mostrar:
+
+```txt
+Tuneis disponiveis: selecione o tunnel criado na OpenAI Platform
+ou use "Usar ID do tunel" e cole o tunnel_xxx manualmente.
+```
+
+Se a interface exibir o aviso de risco para servidores MCP personalizados,
+marque a confirmacao apenas se o PC, o tunnel e o projeto forem confiaveis.
+
+Clique em `Criar`.
 
 Depois de criar, o ChatGPT faz o scan das ferramentas MCP disponiveis.
+
+O app criado aparece na lista de `Aplicativos habilitados` com uma tag `DEV`.
+Ao abrir esse app na lista, a tela mostra informacoes como tunnel conectado,
+permissoes, autorizacao e botao para atualizar/desconectar.
+
+Para evitar pedidos repetidos de aprovacao a cada chamada de ferramenta, abra o
+app criado na lista de `Aplicativos habilitados` e ajuste:
+
+```txt
+Permissoes: Permitir tudo
+```
+
+Essa opcao aparece com aviso de `RISCO ELEVADO`. Use apenas quando o PC, o
+tunnel, o projeto local e o app forem confiaveis.
+
+Depois de criado, o app pode ser usado nos chats pelo menu de apps ou chamando
+o nome do app no campo de mensagem.
 
 ### 11. Teste inicial
 
@@ -272,6 +353,32 @@ Se a listagem/leitura funcionar, o tunnel e o servidor MCP estao operacionais.
 - `lwc_preview_stop`
 - `lwc_preview_capture`
 
+## Salesforce LWC Local Dev Opcional
+
+As ferramentas `lwc_preview_*` sao opcionais. Elas nao sao necessarias para o
+MCP basico de terminal, arquivos e browser funcionar.
+
+Para usar as ferramentas de LWC em um PC novo, alem dos requisitos principais,
+instale/configure:
+
+- Salesforce CLI `sf`.
+- Comando/plugin que disponibiliza `sf lightning dev component`.
+- Uma org autenticada localmente, por exemplo via `sf org login web`.
+- Um projeto Salesforce DX local, com `sfdx-project.json`.
+- O componente LWC dentro de `force-app/main/default/lwc/<nomeDoComponente>`.
+
+Validacoes uteis:
+
+```bat
+sf --version
+sf plugins --core
+sf org list
+sf lightning dev component --help
+```
+
+Se `sf lightning dev component --help` nao existir, instale/atualize os plugins
+Salesforce necessarios antes de usar `lwc_preview_capture`.
+
 ## Configuracao
 
 Arquivo principal:
@@ -330,6 +437,13 @@ Valida o profile do tunnel usando a API key informada no terminal.
 ### `tunnel-run.cmd`
 
 Inicia o `tunnel-client` e mantem a ponte ativa para o ChatGPT.
+
+## Documentos Auxiliares
+
+`README.md` e a fonte principal para instalacao em ordem cronologica.
+
+`TUNNEL_SETUP.md` e um resumo curto focado somente no tunnel. Ele pode ser usado
+como referencia rapida, mas nao substitui os passos completos deste README.
 
 ## Troubleshooting
 
