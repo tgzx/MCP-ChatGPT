@@ -27,6 +27,7 @@ Thumbs.db
 .idea/
 
 # Temporary files
+tmp/
 *.tmp
 *.bak
 PLANEJAMENTO.md 

@@ -1,84 +1,80 @@
 # MCP ChatGPT Full PC Dev
 
-MVP de servidor MCP local para permitir que o ChatGPT use um computador Windows por meio do OpenAI Secure MCP Tunnel.
+Servidor MCP local para Windows que expoe ferramentas de terminal, arquivos,
+processos, browser headless/interativo e helpers de Salesforce LWC para uso via
+OpenAI Secure MCP Tunnel.
 
-Este projeto nasceu para funcionar como um "PC Controller" simples: o ChatGPT descobre ferramentas MCP, chama essas ferramentas pelo tunnel e o servidor local executa ações no PC autorizado.
+O projeto roda localmente em Node.js por stdio. O `tunnel-client.exe` conecta
+esse servidor local a um Custom Connector/App no ChatGPT.
 
-## Status atual
+## Visao Geral
 
-Validado em Windows com OpenAI Tunnel.
-
-Fluxo comprovado:
+Fluxo de execucao:
 
 ```txt
-ChatGPT
-→ Custom Connector / App em modo desenvolvedor
-→ OpenAI Secure MCP Tunnel
-→ tunnel-client.exe rodando no PC
-→ servidor MCP local em Node.js via stdio
-→ ferramentas como list_directory, read_file e ps
+ChatGPT / Custom Connector
+-> OpenAI Secure MCP Tunnel
+-> tunnel-client.exe no Windows
+-> Node.js executando src/app.mjs via stdio
+-> ferramentas MCP locais
 ```
 
-Teste real validado: o ChatGPT conseguiu listar a pasta do projeto usando a ferramenta `list_directory`.
+Principais capacidades:
 
-## Ferramentas disponíveis
+- Executar comandos PowerShell sincronamente ou em background.
+- Ler, criar, mover, buscar e remover arquivos/pastas.
+- Tirar screenshot headless de URL direta.
+- Controlar uma sessao Playwright persistente para browser.
+- Descobrir servidores HTTP locais.
+- Rodar e capturar Salesforce LWC Local Dev Preview.
 
-- `ps`: executa comando PowerShell.
-- `start_ps`: inicia comando PowerShell longo em segundo plano.
-- `read_process`: lê stdout/stderr de processo iniciado por `start_ps`.
-- `stop_process`: encerra processo iniciado por `start_ps`.
-- `list_processes`: lista processos criados por `start_ps`.
-- `list_directory`: lista arquivos e pastas.
-- `get_file_info`: mostra metadados de arquivo ou pasta.
-- `create_directory`: cria pasta recursivamente.
-- `read_file`: lê arquivo de texto.
-- `write_file`: cria ou sobrescreve arquivo de texto.
-- `append_file`: adiciona texto ao final de arquivo.
-- `delete_path`: remove arquivo ou pasta, recusando raiz de unidade.
-- `move_path`: move ou renomeia arquivo ou pasta.
-- `search_names`: busca arquivos/pastas por nome.
-- `screenshot_url`: abre URL em Edge headless, com fallback Chromium, e retorna screenshot.
-
-## Estrutura principal
+## Estrutura
 
 ```txt
 MCP ChatGPT
-├─ config/settings.json
-├─ src/app.mjs
-├─ src/core
-├─ src/tools
-├─ install-deps.cmd
-├─ doctor.cmd
-├─ run-mcp.cmd
-├─ tunnel-init.cmd
-├─ tunnel-doctor.cmd
-├─ tunnel-run.cmd
-├─ tunnel-client.exe
-├─ README.md
-└─ TUNNEL_SETUP.md
+|-- config/settings.json
+|-- src/app.mjs
+|-- src/core/
+|-- src/tools/
+|-- install-deps.cmd
+|-- doctor.cmd
+|-- run-mcp.cmd
+|-- tunnel-init.cmd
+|-- tunnel-doctor.cmd
+|-- tunnel-run.cmd
+|-- tunnel-client.exe
+|-- package.json
+|-- README.md
+`-- TUNNEL_SETUP.md
 ```
 
-## Requisitos em uma nova máquina
+## Requisitos
+
+Antes de instalar, tenha:
 
 - Windows.
-- Node.js LTS instalado.
-- Conta OpenAI com acesso a Tunnels e Custom Connectors / Apps em modo desenvolvedor.
+- Node.js LTS instalado em `C:\Program Files\nodejs`.
+- `npm` disponivel no PATH.
+- Conta OpenAI com acesso a Tunnels e Custom Connectors/Apps em modo
+  desenvolvedor.
 - Um tunnel criado na OpenAI Platform.
-- Uma Runtime API Key / API Key de projeto válida.
-- `tunnel-client.exe` baixado do release oficial do `openai/tunnel-client`.
-## Instalação a partir de ZIP em outro computador
+- Runtime API Key/API Key de projeto para o tunnel.
+- `tunnel-client.exe` compativel com Windows.
 
-### 1. Descompactar o projeto
+## Instalacao em Ordem Cronologica
 
-Recomendado descompactar em:
+### 1. Obter o projeto
+
+Descompacte ou clone o projeto em uma pasta local. Caminho recomendado:
 
 ```txt
 C:\Users\SEU_USUARIO\Documents\MCP ChatGPT
 ```
 
-O nome da pasta pode ter espaço, mas isso exige cuidado na configuração do tunnel. Este README já documenta o workaround que funcionou.
+O caminho pode ter espacos. Os scripts de tunnel usam caminho curto 8.3 do
+Windows para evitar problema de escape no YAML.
 
-### 2. Instalar dependências
+### 2. Instalar dependencias
 
 Abra CMD na pasta do projeto:
 
@@ -87,55 +83,45 @@ cd /d "C:\Users\SEU_USUARIO\Documents\MCP ChatGPT"
 install-deps.cmd
 ```
 
-Esse script roda:
+Esse script executa:
 
 ```bat
 npm install
 npx playwright install chromium
 ```
 
-### 3. Validar o servidor local
+### 3. Validar o servidor MCP local
+
+Ainda no CMD:
 
 ```bat
 doctor.cmd
 ```
 
-Resultado esperado: JSON com `ok: true` e a lista de ferramentas.
+Resultado esperado: JSON com `ok: true`, `rootDir`, `profileName` e
+configuracao carregada.
+
 ### 4. Baixar o tunnel-client
 
-Na página de releases do projeto `openai/tunnel-client`, baixe o binário compatível com Windows.
-
-Opção recomendada:
-
-```txt
-windows-amd64.zip
-```
-
-Se baixar o pacote `all`, o executável costuma ficar em:
-
-```txt
-bin\windows_amd64\tunnel-client.exe
-```
-
-Copie o executável para a raiz do projeto:
+Baixe o binario Windows do OpenAI tunnel-client e coloque na raiz do projeto:
 
 ```txt
 C:\Users\SEU_USUARIO\Documents\MCP ChatGPT\tunnel-client.exe
 ```
 
+Se o download vier em ZIP, extraia o executavel correto para Windows, por
+exemplo `windows-amd64`.
+
 ### 5. Criar um tunnel na OpenAI Platform
 
-Acesse:
+Acesse a pagina de Tunnels da OpenAI Platform e crie um tunnel.
 
-```txt
-https://platform.openai.com/settings/organization/tunnels
-```
-
-Crie um tunnel e copie o ID, por exemplo:
+Copie o ID gerado, no formato:
 
 ```txt
 tunnel_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
 ### 6. Gerar o profile local do tunnel
 
 Rode:
@@ -144,17 +130,16 @@ Rode:
 tunnel-init.cmd
 ```
 
-Informe o `tunnel_id` quando solicitado.
+Quando o script pedir, informe o `tunnel_id`.
 
-Esse script gera o arquivo:
+O profile sera criado em:
 
 ```txt
 %APPDATA%\tunnel-client\mcp-chatgpt-full-pc-dev.yaml
 ```
 
-O profile aponta para o servidor MCP local usando caminhos curtos do Windows e barras `/`, evitando bugs de escape em YAML/comando.
-
-Formato esperado do comando no YAML:
+O YAML gerado aponta para o MCP local usando caminhos curtos e barras `/`.
+Exemplo do formato:
 
 ```yaml
 mcp:
@@ -163,18 +148,13 @@ mcp:
       command: "C:/PROGRA~1/nodejs/node.exe C:/Users/User/DOCUME~1/MCPCHA~1/src/app.mjs"
 ```
 
-Atenção: o caminho exato muda conforme usuário, idioma do Windows e local da pasta.
-### 7. Obter Runtime API Key
+### 7. Obter a Runtime API Key
 
-Acesse:
+Crie ou copie uma API key ativa da OpenAI Platform.
 
-```txt
-https://platform.openai.com/settings/organization/api-keys
-```
-
-Crie ou use uma API key ativa. No terminal ela será usada como variável de ambiente `CONTROL_PLANE_API_KEY`.
-
-Não cole essa chave em chat, README, print público ou commit.
+A key sera informada no terminal quando `tunnel-doctor.cmd` ou
+`tunnel-run.cmd` pedirem. Ela nao deve ser salva no YAML, no Git, em print ou
+em documentacao publica.
 
 ### 8. Validar o tunnel
 
@@ -184,7 +164,7 @@ Rode:
 tunnel-doctor.cmd
 ```
 
-Cole a API key quando o terminal pedir.
+Cole a API key quando solicitado.
 
 Resultado esperado:
 
@@ -193,13 +173,8 @@ RESULT ok
 NEXT tunnel-client run --profile mcp-chatgpt-full-pc-dev
 ```
 
-Alguns `SKIP` são normais para MCP via stdio:
+Alguns `SKIP` podem ser normais quando o servidor MCP usa stdio.
 
-```txt
-mcp_server_reachable SKIP
-oauth_metadata SKIP
-codex_plugin SKIP
-```
 ### 9. Rodar o tunnel
 
 Rode:
@@ -208,98 +183,117 @@ Rode:
 tunnel-run.cmd
 ```
 
-Cole a API key quando pedir.
+Cole a API key quando solicitado.
 
-A janela precisa ficar aberta enquanto o ChatGPT usa o conector.
+Deixe essa janela aberta enquanto o conector estiver em uso.
 
 Resultado esperado no log:
 
 ```txt
-🟢 tunnel-client started
+tunnel-client started
 ```
 
-### 10. Criar o app/conector no ChatGPT
+### 10. Criar o Custom Connector/App no ChatGPT
 
-No ChatGPT Web:
+No ChatGPT Web, crie um Custom Connector/App usando conexao por Tunnel e informe
+o mesmo `tunnel_id` criado na OpenAI Platform.
 
-```txt
-Settings
-→ Aplicativos / Connectors
-→ Criar aplicativo / Custom connector
-→ Conexão: Túnel
-→ Informar o tunnel_id
-→ Sem autenticação
-→ Marcar ciência do risco
-→ Criar
-```
+Depois de criar, o ChatGPT faz o scan das ferramentas MCP disponiveis.
 
-Se tudo estiver certo, o ChatGPT vai fazer scan das ferramentas e exibir as actions.
-## Teste inicial pelo ChatGPT
+### 11. Teste inicial
 
-Com `tunnel-run.cmd` aberto, peça no chat:
+Com `tunnel-run.cmd` aberto, faca uma chamada simples pelo conector:
 
 ```txt
-Use o PC Controller para listar a pasta C:\Users\SEU_USUARIO\Documents\MCP ChatGPT.
+Listar a pasta C:\Users\SEU_USUARIO\Documents\MCP ChatGPT
 ```
 
 Ou:
 
 ```txt
-Use o PC Controller e leia o arquivo C:\Users\SEU_USUARIO\Documents\MCP ChatGPT\checklist.txt.
+Ler o arquivo C:\Users\SEU_USUARIO\Documents\MCP ChatGPT\README.md
 ```
 
-Se a resposta listar arquivos da máquina, o tunnel está funcional.
+Se a listagem/leitura funcionar, o tunnel e o servidor MCP estao operacionais.
 
-## Pegadinha crítica que quebrou o MVP
+## Ferramentas Expostas
 
-No Windows, comandos com `\` dentro do YAML causaram problema no `tunnel-client`.
+### Terminal e processos
 
-O log ruim mostrava algo parecido com:
+- `ps`
+- `start_ps`
+- `read_process`
+- `stop_process`
+- `list_processes`
 
-```txt
-fork/exec C:PROGRA~1nodejsnode.exe: The system cannot find the file specified
-```
+### Arquivos e pastas
 
-Ou seja, o `tunnel-client` removeu as barras invertidas.
-A solução validada foi:
+- `list_directory`
+- `get_file_info`
+- `create_directory`
+- `read_file`
+- `write_file`
+- `append_file`
+- `delete_path`
+- `move_path`
+- `search_names`
 
-- Usar caminho curto 8.3 do Windows.
-- Trocar `\` por `/`.
-- Chamar `node.exe` direto, sem `cmd.exe /c` e sem `.cmd` no campo `command`.
+### Browser e screenshots
 
-Comando final funcional neste PC:
+- `screenshot_url`
+- `browser_start`
+- `browser_attach`
+- `browser_list_sessions`
+- `browser_list_pages`
+- `browser_open_url`
+- `browser_current_url`
+- `browser_screenshot`
+- `browser_capture_candidate`
+- `browser_console`
+- `browser_resize`
+- `browser_close`
+- `browser_snapshot`
+- `browser_click`
+- `browser_type`
+- `browser_scroll`
+- `browser_press`
+- `browser_hover`
+- `browser_wait`
+- `browser_eval`
 
-```yaml
-command: "C:/PROGRA~1/nodejs/node.exe C:/Users/User/DOCUME~1/MCPCHA~1/src/app.mjs"
-```
+### HTTP local
 
-Para descobrir caminhos curtos manualmente:
+- `local_http_probe`
 
-```bat
-for %I in ("C:\Program Files\nodejs\node.exe") do @echo %~sI
-for %I in ("C:\Users\SEU_USUARIO\Documents\MCP ChatGPT\src\app.mjs") do @echo %~sI
-```
+### Salesforce LWC Local Dev
 
-Depois substitua `\` por `/` no YAML.
-## Segurança
+- `lwc_preview_start`
+- `lwc_preview_list`
+- `lwc_preview_stop`
+- `lwc_preview_capture`
 
-Este MVP pode ser poderoso demais se deixado totalmente aberto.
+## Configuracao
 
-Arquivo de configuração do servidor MCP:
+Arquivo principal:
 
 ```txt
 config/settings.json
 ```
 
-Campo importante:
+Campos importantes:
 
 ```json
-"allowedRoots": []
+{
+  "profileName": "mcp-chatgpt-full-pc-dev",
+  "securityMode": "denylist",
+  "allowedRoots": [],
+  "maxCommandTimeoutMs": 300000,
+  "defaultCommandTimeoutMs": 60000
+}
 ```
 
-Quando `allowedRoots` está vazio, o MCP não limita pastas por conta própria.
-
-Recomendação para uso real:
+Quando `allowedRoots` esta vazio, o servidor MCP nao restringe caminhos por
+conta propria. Para limitar o acesso a pastas especificas, preencha:
 
 ```json
 "allowedRoots": [
@@ -309,28 +303,25 @@ Recomendação para uso real:
 ]
 ```
 
-Também é prudente manter `securityMode` como:
+`securityMode: "denylist"` mantem bloqueios basicos contra comandos perigosos.
 
-```json
-"securityMode": "denylist"
-```
-## Scripts do projeto
+## Scripts
 
 ### `install-deps.cmd`
 
-Instala dependências Node e navegador Chromium do Playwright.
+Instala dependencias Node e o Chromium usado pelo Playwright.
 
 ### `doctor.cmd`
 
-Valida o servidor MCP local sem tunnel.
+Executa `node src/app.mjs --doctor` para validar se o servidor local carrega.
 
 ### `run-mcp.cmd`
 
-Sobe o servidor MCP local via stdio. Normalmente não é chamado direto pelo usuário final.
+Roda o servidor MCP local diretamente via stdio.
 
 ### `tunnel-init.cmd`
 
-Gera o profile YAML do tunnel em `%APPDATA%\tunnel-client`.
+Cria o profile YAML do tunnel em `%APPDATA%\tunnel-client`.
 
 ### `tunnel-doctor.cmd`
 
@@ -338,185 +329,112 @@ Valida o profile do tunnel usando a API key informada no terminal.
 
 ### `tunnel-run.cmd`
 
-Sobe o `tunnel-client` e mantém a ponte ativa para o ChatGPT.
+Inicia o `tunnel-client` e mantem a ponte ativa para o ChatGPT.
+
 ## Troubleshooting
 
-### Erro: `write |1: file already closed`
+### `write |1: file already closed`
 
-Significa que o ChatGPT tentou inicializar o MCP, mas o processo local já tinha fechado.
+O processo local do MCP fechou durante a inicializacao.
 
-Causas comuns:
+Possiveis causas:
 
-- Caminho do comando MCP quebrado.
-- Aspas mal interpretadas.
-- Barra invertida removida pelo YAML/comando.
-- Node.js não encontrado.
-- `src/app.mjs` não encontrado.
+- Node.js nao encontrado.
+- Caminho do `src/app.mjs` incorreto.
+- Profile YAML apontando para caminho quebrado.
+- Aspas ou barras interpretadas incorretamente pelo tunnel-client.
 
-Verifique o YAML:
-
-```txt
-%APPDATA%\tunnel-client\mcp-chatgpt-full-pc-dev.yaml
-```
-
-### Erro: `fork/exec C:PROGRA~1nodejsnode.exe`
-
-O comando está usando `\` e o tunnel-client removeu as barras.
-
-Corrija para `/`:
-
-```yaml
-command: "C:/PROGRA~1/nodejs/node.exe C:/Users/User/DOCUME~1/MCPCHA~1/src/app.mjs"
-```
-### Conector criado, mas nenhuma ferramenta aparece
-
-Confira se `tunnel-run.cmd` está aberto e se o log mostra:
-
-```txt
-🟢 tunnel-client started
-```
-
-Depois confira se o app local responde:
+Valide primeiro:
 
 ```bat
 doctor.cmd
 ```
 
+Depois confira o profile:
+
+```txt
+%APPDATA%\tunnel-client\mcp-chatgpt-full-pc-dev.yaml
+```
+
+### `fork/exec C:PROGRA~1nodejsnode.exe`
+
+O comando do YAML provavelmente usou barras invertidas `\` e elas foram
+interpretadas como escape.
+
+Use barras `/`:
+
+```yaml
+command: "C:/PROGRA~1/nodejs/node.exe C:/Users/User/DOCUME~1/MCPCHA~1/src/app.mjs"
+```
+
+### Nenhuma ferramenta aparece no ChatGPT
+
+Verifique:
+
+1. `tunnel-run.cmd` esta aberto.
+2. O log mostra `tunnel-client started`.
+3. O `tunnel_id` do Custom Connector/App e o do profile YAML sao iguais.
+4. `doctor.cmd` retorna `ok: true`.
+
 ### Porta 8080 em uso
 
-O profile usa:
+O profile do tunnel usa por padrao:
 
 ```yaml
 health:
   listen_addr: "127.0.0.1:8080"
 ```
 
-Se a porta estiver ocupada, troque para outra porta livre ou encerre o processo antigo do tunnel.
+Se a porta estiver ocupada, altere `listen_addr` no YAML ou encerre o processo
+que esta usando a porta.
 
-### API key
+## Distribuicao por ZIP
 
-A key é usada apenas no terminal como `CONTROL_PLANE_API_KEY`.
-
-Não grave a key no YAML, no README ou no Git.
-## Publicação / ZIP do MVP
-
-Antes de zipar para outra máquina, recomenda-se não incluir:
+Para distribuir em ZIP, normalmente inclua:
 
 ```txt
-node_modules
-logs
-screenshots temporários
+config/
+src/
+*.cmd
+package.json
+package-lock.json
+README.md
+TUNNEL_SETUP.md
+```
+
+Normalmente nao inclua:
+
+```txt
+node_modules/
+logs/
+screenshots/
+tmp/
+.env
 chaves de API
+tunnel-client.exe, se o destino for baixar o binario separadamente
 ```
 
-O destinatário deve rodar:
+Na maquina de destino, siga a instalacao desde o passo 1.
 
-```bat
-install-deps.cmd
-tunnel-init.cmd
-tunnel-doctor.cmd
-tunnel-run.cmd
-```
-
-## Checklist rápido em outra máquina
+## Checklist Rapido
 
 ```txt
 1. Instalar Node.js LTS.
-2. Descompactar o projeto.
-3. Copiar tunnel-client.exe para a raiz.
-4. Rodar install-deps.cmd.
+2. Copiar/descompactar o projeto.
+3. Rodar install-deps.cmd.
+4. Copiar tunnel-client.exe para a raiz do projeto.
 5. Criar tunnel na OpenAI Platform.
 6. Rodar tunnel-init.cmd e informar tunnel_id.
 7. Rodar tunnel-doctor.cmd e informar API key.
 8. Rodar tunnel-run.cmd e deixar aberto.
-9. Criar Custom Connector no ChatGPT usando Tunnel.
-10. Testar list_directory/read_file.
+9. Criar Custom Connector/App no ChatGPT com o tunnel_id.
+10. Testar list_directory ou read_file.
 ```
 
-## Estado validado neste PC
+## Seguranca
 
-- Profile: `mcp-chatgpt-full-pc-dev`.
-- Tunnel ID: `tunnel_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`.
-- Connector/App: `PC Controller`.
-- Status: conectado em modo desenvolvedor.
-- Ferramentas descobertas pelo ChatGPT: sim.
-- Teste real: `list_directory` funcionou.
-
-## Dependências e pré-requisitos detalhados
-
-### Dependências externas obrigatórias
-
-Estas dependências precisam existir na máquina antes do MVP funcionar:
-
-- Windows.
-- Node.js LTS, incluindo `node` e `npm` no PATH.
-- OpenAI `tunnel-client.exe` compatível com Windows.
-- Conta/OpenAI workspace com acesso a Tunnels e Custom Connectors / Apps em modo desenvolvedor.
-- Tunnel criado na OpenAI Platform.
-- API key ativa para ser usada como `CONTROL_PLANE_API_KEY`.
-
-### Dependências Node do projeto
-
-Declaradas em `package.json`:
-
-```json
-"dependencies": {
-  "@modelcontextprotocol/sdk": "latest",
-  "playwright": "latest",
-  "zod": "^3.25.76"
-}
-```
-Descrição rápida:
-
-- `@modelcontextprotocol/sdk`: SDK usado para criar o servidor MCP e expor as ferramentas.
-- `zod`: valida os schemas de entrada das tools MCP.
-- `playwright`: usado pela ferramenta `screenshot_url` para abrir páginas em navegador headless.
-
-### Dependência de navegador headless
-
-Além do pacote `playwright`, o projeto precisa instalar o navegador Chromium usado como fallback:
-
-```bat
-npx playwright install chromium
-```
-
-O script `install-deps.cmd` já executa isso.
-
-### O que o `install-deps.cmd` instala
-
-```bat
-npm install
-npx playwright install chromium
-```
-
-Ou seja, ele instala:
-
-- `node_modules` com `@modelcontextprotocol/sdk`, `playwright` e `zod`.
-- navegador Chromium do Playwright.
-### O que o ZIP não precisa levar
-
-Para distribuir o MVP em ZIP, normalmente não é necessário incluir:
-
-```txt
-node_modules
-package-lock.json, se quiser reinstalação limpa
-logs
-screenshots temporários
-chaves de API
-```
-
-Ao abrir em outra máquina, rode `install-deps.cmd` para reconstruir as dependências.
-
-### Verificação rápida das dependências
-
-```bat
-node -v
-npm -v
-npm list @modelcontextprotocol/sdk playwright zod
-```
-
-E para validar sintaxe do servidor:
-
-```bat
-npm run check
-```
+- Nao salve API keys no repositorio.
+- Nao publique logs ou screenshots que possam conter dados sensiveis.
+- Revise `allowedRoots` antes de usar em ambiente compartilhado.
+- Mantenha `securityMode` em `denylist` ou configure uma politica mais restrita.
+- Revise comandos antes de expor o conector para terceiros.

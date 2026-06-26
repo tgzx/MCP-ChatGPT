@@ -6,6 +6,7 @@ import { launchHeadlessBrowser } from "../core/browser.mjs";
 import { appendLog } from "../core/logger.mjs";
 import { imageResult } from "../core/result.mjs";
 import { SCREENSHOT_DIR } from "../core/paths.mjs";
+import { redactSensitiveText } from "../core/redact.mjs";
 
 function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -78,8 +79,8 @@ export function registerBrowserTools(server, context) {
         await browser.close();
 
         await appendLog("screenshot_url", {
-          url,
-          finalUrl,
+          url: redactSensitiveText(url),
+          finalUrl: redactSensitiveText(finalUrl),
           outputPath,
           browserName,
           width,
@@ -91,11 +92,11 @@ export function registerBrowserTools(server, context) {
         const note = JSON.stringify({
           savedAt: outputPath,
           browser: browserName,
-          requestedUrl: url,
-          finalUrl,
+          requestedUrl: redactSensitiveText(url),
+          finalUrl: redactSensitiveText(finalUrl),
           title,
           httpStatus: response ? response.status() : null,
-          notes
+          notes: notes.map(note => redactSensitiveText(note))
         }, null, 2);
 
         return imageResult(note, buffer.toString("base64"));
@@ -103,7 +104,7 @@ export function registerBrowserTools(server, context) {
         await browser.close();
 
         throw new Error([
-          `Falha ao abrir URL em modo headless: ${url}`,
+          `Falha ao abrir URL em modo headless: ${redactSensitiveText(url)}`,
           `Browser usado: ${browserName}`,
           error.message
         ].join("\n"));
